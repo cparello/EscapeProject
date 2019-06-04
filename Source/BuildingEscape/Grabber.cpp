@@ -8,8 +8,6 @@
 #include "Components/PrimitiveComponent.h"
 #include "GameFramework/Actor.h"
 #include "Components/ActorComponent.h"
-#include "Engine/Brush.h"
-#include "ConstructorHelpers.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Kismet/KismetMathLibrary.h"
@@ -77,21 +75,6 @@ void UGrabber::TickComponent(float DeltaTime, ELevelTick TickType, FActorCompone
 		// move the object attached
 		PhysicsHandle->SetTargetLocation(GetReachLineEnd());
 	}
-
-
-	if (InputPressed.Equals(TEXT("Tractor")))
-	{
-// 		if(ActorBeingTractored)
-// 		{
-// 			// Interp to the current location of the Player:
-// 			FVector CurrentLocation = GetOwner()->GetActorLocation();
-// 			float WorldDeltaTime = GetWorld()->DeltaTimeSeconds;
-// 			FVector MovementStep = FMath::VInterpTo(ActorToMoveLocation, CurrentLocation, WorldDeltaTime,
-// 				DefaultMovementTime);
-// 			FRotator RotationStep = UKismetMathLibrary::FindLookAtRotation(ActorToMoveLocation, CurrentLocation);
-// 			ActorBeingTractored->SetActorLocationAndRotation(MovementStep, RotationStep);
-// 		}
-	}
 }
 
 FVector UGrabber::GetReachLineStart()
@@ -114,12 +97,14 @@ FVector UGrabber::GetReachLineEnd()
 	{
 		LineEnd = Reach;
 	}
+
+	UE_LOG(LogTemp, Warning, TEXT("Reach: %f"), LineEnd);
 	
 	FVector PlayerViewPoint;
 	FRotator PlayerViewPointRotation;
 	GetWorld()->GetFirstPlayerController()->GetPlayerViewPoint(OUT PlayerViewPoint, OUT PlayerViewPointRotation);
 	//TODO log out test
-	//UE_LOG(LogTemp, Warning, TEXT("Viewpoint %s Rotation %s"), *PlayerViewPoint.ToString(), *PlayerViewPointRotation.ToString());
+	UE_LOG(LogTemp, Warning, TEXT("Viewpoint %s Rotation %s"), *PlayerViewPoint.ToString(), *PlayerViewPointRotation.ToString());
 	return PlayerViewPoint + PlayerViewPointRotation.Vector() * LineEnd;
 }
 
@@ -139,39 +124,55 @@ void UGrabber::Grab()
 		//TODO attach physics handle
 		PhysicsHandle->GrabComponentAtLocation(ComponentToGrab, NAME_None, ComponentToGrab->GetOwner()->GetActorLocation()); //allow rotation
 		bIsObjectGrabbed = true;
+	}else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Grab No Actor Hit"));
 	}
 	
 }
 
 void UGrabber::TractorBeam()
 {
-	InputPressed = TEXT("Tractor");
-
-	UE_LOG(LogTemp, Warning, TEXT("TractorBeam pressed"));
-
-	// line trace try to reach out and grab any actors with physics body collision channel set
-	HitResult = GetFirstPhysicsBodyInReach();
-	auto ComponentToMove = HitResult.GetComponent();
-	ActorBeingTractored = HitResult.GetActor();
-
-	if(ComponentToMove)
+	if(!bIsObjectGrabbed)
 	{
-		ActorToMoveLocation = ComponentToMove->GetOwner()->GetActorLocation();
-		if (ActorBeingTractored)
+		InputPressed = TEXT("Tractor");
+
+		UE_LOG(LogTemp, Warning, TEXT("TractorBeam pressed"));
+
+		// line trace try to reach out and grab any actors with physics body collision channel set
+		HitResult = GetFirstPhysicsBodyInReach();
+		auto ComponentToMove = HitResult.GetComponent();
+		ActorBeingTractored = HitResult.GetActor();
+
+		if(ComponentToMove)
 		{
-			// Interp to the current location of the Player:
-			FVector CurrentLocation = GetOwner()->GetActorLocation();
-			float WorldDeltaTime = GetWorld()->DeltaTimeSeconds;
-			FVector MovementStep = FMath::VInterpTo(ActorToMoveLocation, CurrentLocation, WorldDeltaTime,
-				DefaultMovementTime);
-			FRotator RotationStep = UKismetMathLibrary::FindLookAtRotation(ActorToMoveLocation, CurrentLocation);
-			ActorBeingTractored->SetActorLocationAndRotation(MovementStep, RotationStep);
+			ActorToMoveLocation = ComponentToMove->GetOwner()->GetActorLocation();
+			if (ActorBeingTractored)
+			{
+				float WorldDeltaTime = GetWorld()->DeltaTimeSeconds;
+				FVector CurrentLocation = GetOwner()->GetActorLocation();
+				ActorToMoveLocation.Z += 10.0f * WorldDeltaTime; // use X Y or Z.  Use -= to go the opposite way
+				ActorBeingTractored->SetActorLocation(ActorToMoveLocation);
+				
+				UE_LOG(LogTemp, Warning, TEXT("CurrentLocation.Z %f"), CurrentLocation.Z);
+				
+
+				// Interp to the current location of the Player:
+				
+				UE_LOG(LogTemp, Warning, TEXT("CurrentLocation %s"), *CurrentLocation.ToString());
+				UE_LOG(LogTemp, Warning, TEXT("ActorToMoveLocation %s"), *ActorToMoveLocation.ToString());
+				FVector MovementStep = FMath::VInterpTo(ActorToMoveLocation, CurrentLocation, WorldDeltaTime,
+						DefaultMovementTime);
+				FRotator RotationStep = UKismetMathLibrary::FindLookAtRotation(ActorToMoveLocation, CurrentLocation);
+				ActorBeingTractored->SetActorLocationAndRotation(MovementStep, RotationStep);			
+			}
 		}
 	}
 }
 
 void UGrabber::Release()
 {
+	InputPressed = TEXT("Release");
 	UE_LOG(LogTemp, Warning, TEXT("Release pressed"));
 	if (!PhysicsHandle) { return; }
 	//TODO release physics handle
@@ -180,6 +181,7 @@ void UGrabber::Release()
 
 void UGrabber::Throw()
 {
+	InputPressed = TEXT("Throw");
 	auto ComponentGrabbed = HitResult.GetComponent();
 	int rate = 1000; /// Rate at which the impulse is applied.
 
@@ -207,7 +209,7 @@ void UGrabber::Throw()
 
 void UGrabber::Spawn()
 {
-
+	InputPressed = TEXT("Spawn");
 	UE_LOG(LogTemp, Warning, TEXT("Spawn pressed"));
 
 	// line trace try to reach out and grab any actors with physics body collision channel set
@@ -279,7 +281,7 @@ void UGrabber::Spawn()
 const FHitResult UGrabber::GetFirstPhysicsBodyInReach()
 {
 	// ray-cast (line trace) out to reach distance
-	DrawDebugLine(GetWorld(), GetReachLineStart(), GetReachLineEnd(), FColor(255,0,0), false, 0.0f, 0.0f, 10.0f);
+	DrawDebugLine(GetWorld(), GetReachLineStart(), GetReachLineEnd(), FColor(255,0,0), false, 10.0f, 0.0f, 10.0f);
 
 	FHitResult LineTraceHit;
 	FCollisionQueryParams TraceParameters(FName(TEXT("")), false, GetOwner());

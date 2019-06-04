@@ -40,15 +40,15 @@ private:
 
 
 	//how far ahead of the player we can reach
-	float Reach = 100.0f;
+	float Reach = 50.0f;
 
 	UPhysicsHandleComponent* PhysicsHandle = nullptr;
 
-	float TractorReach = 1000.0f;
+	float TractorReach = 500.0f;
 
 	AActor* ActorBeingTractored;
 	FVector ActorToMoveLocation;
-	float DefaultMovementTime = 10.0f;
+	float DefaultMovementTime = 100.0f;
 
 	//UPhysicsHandleComponent* PhysicsHandle = nullptr;
 
